@@ -1,0 +1,422 @@
+@import 'tailwindcss';
+
+:root {
+  --animation-iteration: infinite;
+}
+
+@keyframes animStar {
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY(-2000px);
+  }
+}
+
+@keyframes animGravity {
+  0% {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+  30%, 80% {
+    letter-spacing: 40px;
+    padding-left: 40px;
+    transform: translateY(0px);
+    opacity: 1;
+  }
+  92%, 100% {
+    letter-spacing: 35px;
+    padding-left: 35px;
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+}
+
+@keyframes animDont {
+  0%, 15% {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+  35%, 80% {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+  92%, 100% {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+}
+
+@keyframes animLet {
+  0%, 25% {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+  45%, 80% {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+  92%, 100% {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+}
+
+@keyframes animGo {
+  0%, 35% {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+  55%, 80% {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+  92%, 100% {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+}
+
+@theme {
+  --color-background: #120600;
+  --color-foreground: #fef7f2;
+  --color-muted: #3d2b1f;
+  --color-muted-foreground: #a89080;
+  --color-border: #2d1f15;
+  --color-input: #1a0f05;
+  --color-primary: #ffa500;
+  --color-primary-foreground: #120600;
+  --color-secondary: #ff8c00;
+  --color-destructive: #ef4444;
+  --radius: 0.5rem;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: radial-gradient(circle at 50% 35%, #FFE699 0%, #FFD966 5%, #FFC966 10%, #FF8800 20%, #CC5500 35%, #663300 55%, #221100 80%, #000000 100%) !important;
+    --color-background: transparent;
+    --color-foreground: #fef7f2;
+    --color-muted: #3d2b1f;
+    --color-muted-foreground: #a89080;
+    --color-border: #2d1f15;
+    --color-input: #1a0f05;
+    --color-primary: #ffa500;
+    --color-primary-foreground: #120600;
+    --color-secondary: #ff8c00;
+    --color-destructive: #ef4444;
+  }
+
+  html.light {
+    color-scheme: light;
+    --color-background: #faf8f6;
+    --color-foreground: #1a0f05;
+    --color-muted: #e8ddf5;
+    --color-muted-foreground: #6b5d50;
+    --color-border: #ddd1c5;
+    --color-input: #f5f0eb;
+    --color-primary: #ff9500;
+    --color-primary-foreground: #faf8f6;
+    --color-secondary: #ff8c00;
+    --color-destructive: #dc2626;
+  }
+
+  body {
+    @apply text-foreground;
+    background: transparent;
+  }
+
+  * {
+    @apply border-border;
+  }
+}
+
+@layer components {
+  /* Glass card effect */
+  .glass-card {
+    @apply relative backdrop-blur-xl rounded-2xl border border-white/10;
+    background: rgba(18, 6, 0, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  }
+
+  .glass-card:hover {
+    @apply border-white/20;
+    background: rgba(18, 6, 0, 0.4);
+  }
+
+  html.light .glass-card {
+    background: rgba(250, 248, 246, 0.5);
+    @apply border-orange-200/30;
+  }
+
+  html.light .glass-card:hover {
+    background: rgba(250, 248, 246, 0.7);
+    @apply border-orange-200/50;
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    color: #ffa500;
+  }
+
+  .text-gradient-brand {
+    color: #ffa500;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200;
+    background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);
+    color: #120600;
+    border: none;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(255, 165, 0, 0.3);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+  }
+
+  /* Ghost button */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200;
+    background: transparent;
+    color: #ffa500;
+    border: 1px solid #ffa500;
+
+    &:hover {
+      background: rgba(255, 165, 0, 0.1);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  /* Gradient button */
+  .btn-gradient {
+    @apply inline-flex items-center justify-center gap-2 font-semibold transition-all duration-200;
+    background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);
+    color: #120600;
+    border: none;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(255, 165, 0, 0.3);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  /* Glow effects */
+  .glow-cyan {
+    display: none;
+  }
+
+  .glow-purple {
+    display: none;
+  }
+
+  .glow-blue {
+    display: none;
+  }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+  }
+
+  /* Input styling */
+  input,
+  textarea,
+  select {
+    @apply bg-input text-foreground placeholder-muted-foreground border-border;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    @apply border-primary ring-1 ring-primary;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #5a4538;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #7a6558;
+  }
+
+  html.light {
+    ::-webkit-scrollbar-thumb {
+      background: #ddd1c5;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #b0a497;
+    }
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
+
+/* Cosmic Parallax Styles */
+.cosmic-parallax-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #000, #001a4d, #000);
+  overflow: hidden;
+  z-index: 0;
+}
+
+.cosmic-stars {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  background: #fff;
+  box-shadow: var(--cosmic-small-stars);
+  animation: animStar 200s linear var(--animation-iteration);
+}
+
+.cosmic-stars-medium {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #fff;
+  box-shadow: var(--cosmic-medium-stars);
+  animation: animStar 150s linear var(--animation-iteration);
+}
+
+.cosmic-stars-large {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: #fff;
+  box-shadow: var(--cosmic-large-stars);
+  animation: animStar 100s linear var(--animation-iteration);
+}
+
+#horizon {
+  position: absolute;
+  bottom: 30%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #0066ff, #001a4d);
+  transform: translateX(-50%);
+  opacity: 0.3;
+}
+
+#horizon .glow {
+  position: absolute;
+  inset: -50px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 102, 255, 0.1), transparent);
+  filter: blur(40px);
+}
+
+#earth {
+  position: absolute;
+  bottom: 30%;
+  left: 50%;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #004488, #001100);
+  transform: translateX(-50%);
+  box-shadow: 0 0 80px rgba(0, 102, 255, 0.2), inset -30px -30px 60px rgba(0, 0, 0, 0.5);
+}
+
+#title {
+  position: absolute;
+  top: -500px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 4rem;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+  letter-spacing: 3px;
+  z-index: 5;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+#subtitle {
+  position: absolute;
+  top: -500px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.5rem;
+  color: #aaa;
+  text-align: center;
+  z-index: 5;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.subtitle-part-1 {
+  display: none;
+}
+
+.subtitle-part-2 {
+  display: none;
+}
+
+.subtitle-part-3 {
+  display: none;
+}
+
+.subtitle-part-4 {
+  display: none;
+}
