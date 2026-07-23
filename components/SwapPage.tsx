@@ -13,7 +13,7 @@ export const SwapPage: React.FC = () => {
       {/* Compact Hero - 40-50vh max */}
       <div className="min-h-[30vh] sm:min-h-[40vh] max-h-[50vh] flex flex-col justify-center">
         <div className="space-y-2 sm:space-y-3">
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-red-400 via-rose-500 to-red-600 drop-shadow-[0_2px_12px_rgba(239,68,68,0.4)] text-balance leading-tight">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-black dark:text-black text-balance leading-tight drop-shadow-[0_1px_6px_rgba(255,255,255,0.3)]">
             Welcome to ArcSwap
           </h1>
           <p className="text-sm sm:text-lg text-muted-foreground max-w-xl leading-relaxed">

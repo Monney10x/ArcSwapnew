@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useWeb3 } from '@/context/Web3Context';
 import { formatAddress } from '@/lib/web3';
 import { Button } from '@/components/ui/button';
+import { MetaMaskIcon, RabbyIcon, OKXIcon } from '@/components/WalletIcons';
 
 export const Header: React.FC = () => {
   const { 
@@ -65,7 +66,7 @@ export const Header: React.FC = () => {
                   disabled={isLoading}
                   className="px-4 py-2 border border-border rounded-lg hover:bg-secondary/50 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  <span>🦊</span>
+                  <MetaMaskIcon className="w-5 h-5" />
                   <span>MetaMask</span>
                 </button>
                 <button
@@ -73,7 +74,7 @@ export const Header: React.FC = () => {
                   disabled={isLoading}
                   className="px-4 py-2 border border-border rounded-lg hover:bg-secondary/50 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  <span>⬜</span>
+                  <OKXIcon className="w-5 h-5" />
                   <span>OKX</span>
                 </button>
                 <button
@@ -81,7 +82,7 @@ export const Header: React.FC = () => {
                   disabled={isLoading}
                   className="px-4 py-2 border border-border rounded-lg hover:bg-secondary/50 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  <span>🐰</span>
+                  <RabbyIcon className="w-5 h-5" />
                   <span>Rabby</span>
                 </button>
               </div>

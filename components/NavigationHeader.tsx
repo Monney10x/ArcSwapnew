@@ -6,6 +6,7 @@ import { formatAddress } from '@/lib/web3';
 import { WalletSelectorModal } from '@/components/WalletSelectorModal';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { isAuthorizedWallet } from '@/lib/admin.config';
+import { MetaMaskIcon } from '@/components/WalletIcons';
 import Link from 'next/link';
 
 interface NavigationHeaderProps {
@@ -75,12 +76,12 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({ currentPage,
               <button
                 onClick={openWalletSelector}
                 disabled={isLoading}
-                className="btn-gradient rounded-lg sm:rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm disabled:opacity-50 whitespace-nowrap"
+                className="btn-gradient rounded-lg sm:rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm disabled:opacity-50 whitespace-nowrap flex items-center gap-2"
               >
                 {isLoading ? (
                   <span className="animate-spin" aria-hidden="true">⚙️</span>
                 ) : (
-                  <span className="hidden sm:inline" aria-hidden="true">👛</span>
+                  <MetaMaskIcon className="w-5 h-5 flex-shrink-0" />
                 )}
                 <span className="hidden sm:inline">Connect Wallet</span>
                 <span className="sm:hidden">Connect</span>
