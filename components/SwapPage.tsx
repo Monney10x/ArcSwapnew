@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { SwapTokens } from './SwapTokens';
 import { SendUSDC } from './TokenSwap';
+import { TransactionHistory } from './TransactionHistory';
 
 export const SwapPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'swap' | 'send'>('swap');
@@ -12,7 +13,7 @@ export const SwapPage: React.FC = () => {
       {/* Compact Hero - 40-50vh max */}
       <div className="min-h-[30vh] sm:min-h-[40vh] max-h-[50vh] flex flex-col justify-center">
         <div className="space-y-2 sm:space-y-3">
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gradient text-balance leading-tight">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-500 drop-shadow-[0_2px_12px_rgba(255,165,0,0.4)] text-balance leading-tight">
             Welcome to ArcSwap
           </h1>
           <p className="text-sm sm:text-lg text-muted-foreground max-w-xl leading-relaxed">
@@ -47,10 +48,13 @@ export const SwapPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Full-width Swap Card */}
-      <div className="w-full max-w-2xl mx-auto">
+      {/* Full-width Swap Card & Transaction History */}
+      <div className="w-full max-w-2xl mx-auto space-y-8">
         {activeTab === 'swap' && <SwapTokens />}
         {activeTab === 'send' && <SendUSDC />}
+
+        {/* Transaction History Section */}
+        <TransactionHistory />
       </div>
     </div>
   );

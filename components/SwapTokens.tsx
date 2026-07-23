@@ -4,6 +4,7 @@ import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useWeb3 } from '@/context/Web3Context';
 import { getExplorerTxUrl, executeSwap, getWalletProvider } from '@/lib/web3';
 import { Button } from '@/components/ui/button';
+import { saveTransactionToHistory } from '@/components/TransactionHistory';
 
 export const SwapTokens: React.FC = () => {
   const { address, isConnected, isCorrectChain, isLoading, refreshBalance, walletId, balance } = useWeb3();
@@ -139,6 +140,16 @@ export const SwapTokens: React.FC = () => {
       
       console.log('[v0] Swap transaction confirmed:', txHash);
       
+      saveTransactionToHistory({
+        type: 'swap',
+        fromToken: swapFrom,
+        fromAmount,
+        toToken: swapTo,
+        toAmount,
+        status: 'completed',
+        hash: txHash,
+      });
+
       setTransactionHash(txHash);
       setSuccess(`Swapped ${fromAmount} ${swapFrom} for ${toAmount} ${swapTo}`);
       setFromAmount('');

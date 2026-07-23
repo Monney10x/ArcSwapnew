@@ -3,6 +3,7 @@
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useWeb3 } from '@/context/Web3Context';
 import { transferUSDC, getExplorerTxUrl } from '@/lib/web3';
+import { saveTransactionToHistory } from '@/components/TransactionHistory';
 
 export const SendUSDC: React.FC = () => {
   const { address, isConnected, isCorrectChain, balance, isLoading, refreshBalance } = useWeb3();
@@ -79,6 +80,17 @@ export const SendUSDC: React.FC = () => {
 
     try {
       const txHash = await transferUSDC(recipientAddress, amount);
+      saveTransactionToHistory({
+        type: 'transfer',
+        fromToken: 'USDC',
+        fromAmount: amount,
+        toToken: 'USDC',
+        toAmount: amount,
+        status: 'completed',
+        hash: txHash,
+        recipient: recipientAddress,
+      });
+
       setTransactionHash(txHash);
       setSuccess(`Transfer successful! Transaction: ${txHash.slice(0, 10)}...`);
       
