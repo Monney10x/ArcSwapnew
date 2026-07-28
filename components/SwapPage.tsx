@@ -14,7 +14,7 @@ export const SwapPage: React.FC = () => {
       <div className="min-h-[30vh] sm:min-h-[40vh] max-h-[50vh] flex flex-col justify-center">
         <div className="space-y-2 sm:space-y-3">
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-balance leading-tight">
-            <span className="text-red-500 drop-shadow-[0_2px_10px_rgba(239,68,68,0.4)]">Welcome to </span>
+            <span className="text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)]">Welcome to </span>
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-red-500 via-rose-400 to-red-600 drop-shadow-[0_2px_14px_rgba(239,68,68,0.6)]">ArcSwap</span>
           </h1>
           <p className="text-sm sm:text-lg text-muted-foreground max-w-xl leading-relaxed">
