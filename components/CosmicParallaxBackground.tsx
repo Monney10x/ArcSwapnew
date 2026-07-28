@@ -85,22 +85,7 @@ const CosmicParallaxBg: React.FC<CosmicParallaxBgProps> = ({
         className="cosmic-stars-large"
       ></div>
       
-      {/* Horizon and Earth */}
-      <div id="horizon">
-        <div className="glow"></div>
-      </div>
-      <div id="earth"></div>
-      
-      {/* Title and subtitle */}
-      <div id="title">{head.toUpperCase()}</div>
-      <div id="subtitle">
-        {textParts.map((part, index) => (
-          <React.Fragment key={index}>
-            <span className={`subtitle-part-${index + 1}`}>{part.toUpperCase()}</span>
-            {index < textParts.length - 1 && ' '}
-          </React.Fragment>
-        ))}
-      </div>
+      {/* Background Star field */}
     </div>
   );
 };

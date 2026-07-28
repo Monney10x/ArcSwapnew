@@ -60,7 +60,6 @@ export default function Page() {
         </div>
         </div>
 
-        <NetworkActionButton />
         <Footer />
       </main>
     </>
