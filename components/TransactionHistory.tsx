@@ -1,370 +1,502 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { ExternalLink, CheckCircle2, Clock, AlertCircle, ArrowUpRight, ArrowDownLeft, RefreshCw, Trash2, Search, Copy, Check } from 'lucide-react';
-import { getExplorerTxUrl } from '@/lib/web3';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  ExternalLink,
+  CheckCircle2,
+  Clock,
+  ArrowUpRight,
+  ArrowDownLeft,
+  RefreshCw,
+  Search,
+  Copy,
+  Check,
+  AlertTriangle,
+  Flame,
+  ChevronLeft,
+  ChevronRight,
+  Boxes,
+  Send,
+  Repeat,
+  Wallet
+} from 'lucide-react';
+import { useWeb3 } from '@/context/Web3Context';
+import {
+  fetchOnChainTransactions,
+  registerSentTransaction,
+  shortenAddress,
+  formatTimeAgo,
+  OnChainTransaction,
+} from '@/lib/onchainTransactions';
 
-export interface TransactionRecord {
-  id: string;
+// Compatibility function for existing callers (e.g. TokenSwap, SwapTokens)
+export const saveTransactionToHistory = (tx: {
   type: 'swap' | 'transfer';
   fromToken: string;
   fromAmount: string;
   toToken: string;
   toAmount: string;
   status: 'completed' | 'pending' | 'failed';
-  timestamp: number;
   hash: string;
   recipient?: string;
-}
+}) => {
+  if (!tx.hash) return;
 
-const STORAGE_KEY = 'arcswap_transactions_history';
+  registerSentTransaction({
+    hash: tx.hash,
+    from: tx.recipient ? '0xUser' : '0xWallet',
+    to: tx.recipient || '0xContract',
+    tokenName: tx.fromToken === 'USDC' ? 'USD Coin' : 'Arc Token',
+    tokenSymbol: tx.fromToken,
+    amount: tx.fromAmount,
+    status: 'confirmed',
+    blockNumber: 0,
+    timestamp: Date.now(),
+    gasFee: '0.000021 USDC',
+    type: tx.type,
+  });
 
-const INITIAL_SAMPLE_TRANSACTIONS: TransactionRecord[] = [
-  {
-    id: 'tx-1',
-    type: 'swap',
-    fromToken: 'USDC',
-    fromAmount: '25.00',
-    toToken: 'ARC',
-    toAmount: '26.25',
-    status: 'completed',
-    timestamp: Date.now() - 1000 * 60 * 12, // 12 mins ago
-    hash: '0x3a8291b703e2c34d82910fae109823c892b1a823901bca0921820491823ab08c',
-  },
-  {
-    id: 'tx-2',
-    type: 'swap',
-    fromToken: 'ARC',
-    fromAmount: '10.00',
-    toToken: 'USDT',
-    toAmount: '9.40',
-    status: 'completed',
-    timestamp: Date.now() - 1000 * 60 * 60 * 3, // 3 hours ago
-    hash: '0x8b12f492019a28b0129c92e1093a8217032910bc8201a90218920148209384bc',
-  },
-  {
-    id: 'tx-3',
-    type: 'transfer',
-    fromToken: 'USDC',
-    fromAmount: '50.00',
-    toToken: 'USDC',
-    toAmount: '50.00',
-    status: 'completed',
-    timestamp: Date.now() - 1000 * 60 * 60 * 24, // 1 day ago
-    hash: '0x1c94f102938a9018274019283749018273940182739401827394018273940182',
-    recipient: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-  },
-  {
-    id: 'tx-4',
-    type: 'swap',
-    fromToken: 'USDT',
-    fromAmount: '100.00',
-    toToken: 'ARC',
-    toAmount: '106.00',
-    status: 'completed',
-    timestamp: Date.now() - 1000 * 60 * 60 * 48, // 2 days ago
-    hash: '0x6d9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f',
-  }
-];
-
-export const saveTransactionToHistory = (tx: Omit<TransactionRecord, 'id' | 'timestamp'>) => {
-  try {
-    const newRecord: TransactionRecord = {
-      ...tx,
-      id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: Date.now(),
-    };
-
-    const existingJson = localStorage.getItem(STORAGE_KEY);
-    let list: TransactionRecord[] = [];
-    if (existingJson) {
-      list = JSON.parse(existingJson);
-    } else {
-      list = [...INITIAL_SAMPLE_TRANSACTIONS];
-    }
-
-    const updated = [newRecord, ...list];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-
-    // Dispatch custom event for real-time update
-    window.dispatchEvent(new CustomEvent('arcswap_tx_added', { detail: newRecord }));
-  } catch (err) {
-    console.error('Failed to save transaction to history:', err);
+  // Notify listeners to refresh feed immediately
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('arcswap_tx_added'));
   }
 };
 
 export const TransactionHistory: React.FC = () => {
-  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
-  const [filter, setFilter] = useState<'all' | 'swap' | 'transfer' | 'completed' | 'pending'>('all');
+  const { address, isConnected, openWalletSelector } = useWeb3();
+
+  const [transactions, setTransactions] = useState<OnChainTransaction[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [filter, setFilter] = useState<'all' | 'swap' | 'transfer'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
-  const loadTransactions = () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setTransactions(JSON.parse(stored));
-      } else {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_SAMPLE_TRANSACTIONS));
-        setTransactions(INITIAL_SAMPLE_TRANSACTIONS);
-      }
-    } catch {
-      setTransactions(INITIAL_SAMPLE_TRANSACTIONS);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 5;
+
+  const isMounted = useRef(true);
+
+  // Core Data Fetcher
+  const loadOnChainData = useCallback(async (isSilent = false) => {
+    if (!isConnected || !address) {
+      setTransactions([]);
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
     }
-  };
 
+    if (!isSilent) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+    setError(null);
+
+    try {
+      const realTxs = await fetchOnChainTransactions(address, 30);
+      if (isMounted.current) {
+        setTransactions(realTxs);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch on-chain transactions:', err);
+      if (isMounted.current) {
+        setError('Unable to fetch live transaction data from Arc Testnet RPC.');
+      }
+    } finally {
+      if (isMounted.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    }
+  }, [address, isConnected]);
+
+  // Initial load + interval setup (12s auto-refresh requirement)
   useEffect(() => {
-    loadTransactions();
+    isMounted.current = true;
+    loadOnChainData(false);
+
+    const intervalId = setInterval(() => {
+      loadOnChainData(true);
+    }, 12000); // Auto-refresh every 12 seconds
 
     const handleNewTx = () => {
-      loadTransactions();
+      loadOnChainData(true);
     };
 
     window.addEventListener('arcswap_tx_added', handleNewTx);
+
     return () => {
+      isMounted.current = false;
+      clearInterval(intervalId);
       window.removeEventListener('arcswap_tx_added', handleNewTx);
     };
-  }, []);
+  }, [loadOnChainData]);
 
-  const clearHistory = () => {
-    if (confirm('Are you sure you want to clear your transaction history?')) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
-      setTransactions([]);
-    }
-  };
-
-  const restoreSampleData = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_SAMPLE_TRANSACTIONS));
-    setTransactions(INITIAL_SAMPLE_TRANSACTIONS);
-  };
-
-  const copyToClipboard = (text: string, id: string) => {
+  // Copy to clipboard helper
+  const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
-    setCopiedHash(id);
-    setTimeout(() => setCopiedHash(null), 2000);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const formatTimeAgo = (time: number) => {
-    const seconds = Math.floor((Date.now() - time) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  };
-
+  // Filter & Search Logic
   const filteredTransactions = transactions.filter((tx) => {
-    // Filter by type or status
+    // Filter by type
     if (filter === 'swap' && tx.type !== 'swap') return false;
     if (filter === 'transfer' && tx.type !== 'transfer') return false;
-    if (filter === 'completed' && tx.status !== 'completed') return false;
-    if (filter === 'pending' && tx.status !== 'pending') return false;
 
-    // Filter by search query
+    // Search query match
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      const matchFrom = tx.fromToken.toLowerCase().includes(query);
-      const matchTo = tx.toToken.toLowerCase().includes(query);
-      const matchHash = tx.hash.toLowerCase().includes(query);
-      const matchRecipient = tx.recipient ? tx.recipient.toLowerCase().includes(query) : false;
-
-      return matchFrom || matchTo || matchHash || matchRecipient;
+      const q = searchQuery.toLowerCase();
+      const matchHash = tx.hash.toLowerCase().includes(q);
+      const matchFrom = tx.from.toLowerCase().includes(q);
+      const matchTo = tx.to.toLowerCase().includes(q);
+      const matchSymbol = tx.tokenSymbol.toLowerCase().includes(q);
+      const matchName = tx.tokenName.toLowerCase().includes(q);
+      return matchHash || matchFrom || matchTo || matchSymbol || matchName;
     }
 
     return true;
   });
 
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, searchQuery]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage) || 1;
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Do not render the transaction history block if wallet is not connected
+  if (!isConnected || !address) {
+    return null;
+  }
+
   return (
-    <div id="transaction-history" className="glass-card rounded-2xl p-5 sm:p-6 space-y-5 border border-yellow-500/20 bg-slate-950/40 backdrop-blur-xl">
+    <div id="transaction-history" className="glass-card rounded-2xl p-5 sm:p-6 space-y-5 border border-amber-500/20 bg-slate-950/60 backdrop-blur-xl transition-all duration-300">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Recent Transactions</h2>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-              {transactions.length}
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+              Recent Transactions
+            </h2>
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Live On-Chain
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            View your recent token swaps and transfers on Arc Testnet
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+            Real verified blockchain transactions on Arc Testnet (Auto-refreshes every 12s)
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={loadTransactions}
-            className="p-2 rounded-lg glass-panel hover:bg-white/10 text-muted-foreground hover:text-foreground transition-all duration-200"
-            title="Refresh history"
+            onClick={() => loadOnChainData(false)}
+            disabled={isLoading || isRefreshing}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl glass-panel hover:bg-white/10 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 transition-all duration-200"
+            title="Refresh on-chain data"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isLoading ? 'animate-spin text-amber-400' : ''}`} />
+            <span>{isRefreshing ? 'Syncing...' : 'Sync RPC'}</span>
           </button>
-          {transactions.length > 0 ? (
-            <button
-              onClick={clearHistory}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 border border-destructive/20 transition-all duration-200"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear</span>
-            </button>
-          ) : (
-            <button
-              onClick={restoreSampleData}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-amber-400 hover:bg-amber-400/10 border border-amber-400/30 transition-all duration-200"
-            >
-              <span>Load Examples</span>
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Filters and Search */}
+      {/* Filter and Search Controls */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Filter Pills */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          {(['all', 'swap', 'transfer', 'completed', 'pending'] as const).map((tab) => (
+          {(['all', 'swap', 'transfer'] as const).map((t) => (
             <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize whitespace-nowrap transition-all duration-200 ${
-                filter === tab
-                  ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20'
+              key={t}
+              onClick={() => setFilter(t)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold capitalize whitespace-nowrap transition-all duration-200 ${
+                filter === t
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold shadow-md shadow-amber-500/20'
                   : 'bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
               }`}
             >
-              {tab}
+              {t === 'all' ? 'All Transactions' : `${t}s`}
             </button>
           ))}
         </div>
 
-        {/* Search Bar */}
+        {/* Search Input */}
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search token or hash..."
-            className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            placeholder="Search address, token or hash..."
+            className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500/50"
           />
         </div>
       </div>
 
-      {/* Transaction List */}
-      <div className="space-y-3">
-        {filteredTransactions.length === 0 ? (
-          <div className="text-center py-10 rounded-xl border border-dashed border-white/10 bg-white/5 space-y-2">
-            <Clock className="w-8 h-8 mx-auto text-muted-foreground/50" />
-            <p className="text-sm font-medium text-muted-foreground">No transactions found</p>
-            <p className="text-xs text-muted-foreground/70">
-              {transactions.length === 0
-                ? 'Your recent swaps and transfers will appear here.'
-                : 'Try adjusting your filter or search query.'}
+      {/* Main Content Area */}
+      {!isConnected || !address ? (
+        /* Disconnected State - Require Wallet Connection */
+        <div className="rounded-2xl p-8 text-center bg-white/5 border border-white/10 space-y-4">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+            <Wallet className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">Connect Wallet to View Transactions</h3>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              On-chain transaction history is displayed after connecting your wallet. Connect your wallet to view your activity on Arc Testnet.
             </p>
           </div>
-        ) : (
-          filteredTransactions.map((tx) => (
+          <button
+            onClick={openWalletSelector}
+            className="btn-gradient rounded-xl px-5 py-2.5 text-xs font-semibold inline-flex items-center gap-2 hover:scale-[1.02] transition-transform shadow-lg shadow-amber-500/10"
+          >
+            <Wallet className="w-4 h-4" />
+            <span>Connect Wallet</span>
+          </button>
+        </div>
+      ) : isLoading ? (
+        /* Loading Skeleton */
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
             <div
-              key={tx.id}
-              className="group relative flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-slate-900/50 hover:bg-slate-900/80 border border-white/5 hover:border-amber-500/30 transition-all duration-200 gap-3"
+              key={i}
+              className="p-4 rounded-xl border border-white/5 bg-white/5 animate-pulse space-y-3"
             >
-              {/* Left Side: Icon & Details */}
-              <div className="flex items-start sm:items-center gap-3">
-                <div
-                  className={`p-2.5 rounded-xl flex-shrink-0 ${
-                    tx.type === 'swap'
-                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                      : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                  }`}
-                >
-                  {tx.type === 'swap' ? (
-                    <ArrowUpRight className="w-4 h-4" />
-                  ) : (
-                    <ArrowDownLeft className="w-4 h-4" />
-                  )}
-                </div>
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-24 bg-white/10 rounded"></div>
+                <div className="h-4 w-16 bg-white/10 rounded-full"></div>
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <div className="h-5 w-32 bg-white/10 rounded"></div>
+                <div className="h-5 w-20 bg-white/10 rounded"></div>
+              </div>
+              <div className="h-3 w-48 bg-white/10 rounded"></div>
+            </div>
+          ))}
+        </div>
+      ) : error && transactions.length === 0 ? (
+        /* Error State */
+        <div className="rounded-xl p-6 text-center bg-destructive/10 border border-destructive/20 space-y-3">
+          <AlertTriangle className="w-8 h-8 mx-auto text-destructive animate-bounce" />
+          <p className="text-sm font-semibold text-foreground">{error}</p>
+          <p className="text-xs text-muted-foreground">
+            Check network RPC configuration or internet connection.
+          </p>
+          <button
+            onClick={() => loadOnChainData(false)}
+            className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
+          >
+            Retry Connection
+          </button>
+        </div>
+      ) : filteredTransactions.length === 0 ? (
+        /* Empty State */
+        <div className="rounded-2xl p-8 text-center bg-white/5 border border-white/10 space-y-3">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+            <Boxes className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-semibold text-foreground">No On-Chain Transactions Found</h3>
+          <p className="text-xs text-muted-foreground max-w-md mx-auto">
+            {searchQuery
+              ? `No transactions matched "${searchQuery}". Try adjusting your search query.`
+              : address
+              ? `No confirmed on-chain transactions found for ${shortenAddress(address)}. Execute a swap or transfer above to interact with Arc Testnet!`
+              : 'There are currently no recent confirmed transactions found on the network. Perform a swap or transfer to broadcast live transactions.'}
+          </p>
+        </div>
+      ) : (
+        /* Transaction Cards List */
+        <div className="space-y-3">
+          {paginatedTransactions.map((tx) => {
+            const isSwap = tx.type === 'swap';
+            const copyHashKey = `hash-${tx.hash}`;
+            const copyFromKey = `from-${tx.hash}`;
+            const copyToKey = `to-${tx.hash}`;
 
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-sm text-foreground">
-                      {tx.type === 'swap' ? (
-                        <>
-                          Swap <span className="text-amber-400">{tx.fromAmount} {tx.fromToken}</span> for{' '}
-                          <span className="text-emerald-400">{tx.toAmount} {tx.toToken}</span>
-                        </>
-                      ) : (
-                        <>
-                          Transfer <span className="text-blue-400">{tx.fromAmount} {tx.fromToken}</span>
-                          {tx.recipient && (
-                            <span className="text-xs text-muted-foreground font-mono ml-1">
-                              to {tx.recipient.slice(0, 6)}...{tx.recipient.slice(-4)}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </span>
-
-                    {/* Status Badge */}
+            return (
+              <div
+                key={tx.hash}
+                className="group relative rounded-xl p-4 bg-slate-900/50 hover:bg-slate-900/80 border border-white/10 hover:border-amber-500/30 transition-all duration-200 space-y-3 shadow-sm hover:shadow-md hover:shadow-amber-500/5"
+              >
+                {/* Top Row: Type, Status, Block, Time */}
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs border-b border-white/5 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    {/* Type Badge */}
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider ${
-                        tx.status === 'completed'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                          : tx.status === 'pending'
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30 animate-pulse'
-                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold border ${
+                        isSwap
+                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                          : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
                       }`}
                     >
-                      {tx.status === 'completed' && <CheckCircle2 className="w-3 h-3" />}
-                      {tx.status === 'pending' && <Clock className="w-3 h-3" />}
-                      {tx.status === 'failed' && <AlertCircle className="w-3 h-3" />}
-                      {tx.status}
+                      {isSwap ? <Repeat className="w-3 h-3" /> : <Send className="w-3 h-3" />}
+                      <span className="capitalize">{tx.type}</span>
                     </span>
+
+                    {/* Status Badge - Required Confirmed/Success */}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Confirmed
+                    </span>
+
+                    {/* Block Number */}
+                    {tx.blockNumber > 0 && (
+                      <span className="text-[11px] text-muted-foreground font-mono bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                        #{tx.blockNumber}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  {/* Relative Timestamp */}
+                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground" title={new Date(tx.timestamp).toLocaleString()}>
+                    <Clock className="w-3 h-3 text-amber-400/80" />
                     <span>{formatTimeAgo(tx.timestamp)}</span>
-                    <span>•</span>
-                    <span className="font-mono text-[11px]">
-                      {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span>•</span>
-                    <div className="flex items-center gap-1">
-                      <span className="font-mono text-[11px] truncate max-w-[100px] sm:max-w-[140px]">
-                        {tx.hash.slice(0, 8)}...{tx.hash.slice(-6)}
-                      </span>
+                  </div>
+                </div>
+
+                {/* Middle Row: From -> To & Amount */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  {/* Addresses */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground w-10">From:</span>
+                      <span className="font-mono text-foreground font-medium">{shortenAddress(tx.from)}</span>
                       <button
-                        onClick={() => copyToClipboard(tx.hash, tx.id)}
-                        className="p-1 hover:text-foreground transition-colors"
-                        title="Copy transaction hash"
+                        onClick={() => handleCopy(tx.from, copyFromKey)}
+                        className="text-muted-foreground hover:text-amber-400 transition-colors p-0.5"
+                        title="Copy From Address"
                       >
-                        {copiedHash === tx.id ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
+                        {copiedId === copyFromKey ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground w-10">To:</span>
+                      <span className="font-mono text-foreground font-medium">{shortenAddress(tx.to)}</span>
+                      <button
+                        onClick={() => handleCopy(tx.to, copyToKey)}
+                        className="text-muted-foreground hover:text-amber-400 transition-colors p-0.5"
+                        title="Copy To Address"
+                      >
+                        {copiedId === copyToKey ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Token & Amount */}
+                  <div className="sm:text-right">
+                    <div className="text-base sm:text-lg font-bold text-foreground tracking-tight">
+                      {tx.amount} <span className="text-amber-400">{tx.tokenSymbol}</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">{tx.tokenName}</div>
+                  </div>
+                </div>
+
+                {/* Bottom Row: Gas Fee, Hash & Explorer Link */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/5 text-[11px]">
+                  {/* Gas Fee & Hash */}
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <div className="flex items-center gap-1 font-mono">
+                      <span>Gas Fee:</span>
+                      <span className="text-foreground font-medium">{tx.gasFee}</span>
+                    </div>
+
+                    <div className="hidden md:flex items-center gap-1.5 font-mono">
+                      <span>Tx:</span>
+                      <span className="text-foreground">{shortenAddress(tx.hash, 6)}</span>
+                      <button
+                        onClick={() => handleCopy(tx.hash, copyHashKey)}
+                        className="text-muted-foreground hover:text-amber-400 transition-colors"
+                        title="Copy Transaction Hash"
+                      >
+                        {copiedId === copyHashKey ? (
+                          <span className="text-emerald-400 flex items-center gap-0.5 font-sans text-[10px]">
+                            <Check className="w-3 h-3" /> Copied!
+                          </span>
                         ) : (
                           <Copy className="w-3 h-3" />
                         )}
                       </button>
                     </div>
                   </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 ml-auto">
+                    {/* Copy Hash Button (Mobile / Small Screens) */}
+                    <button
+                      onClick={() => handleCopy(tx.hash, copyHashKey)}
+                      className="md:hidden flex items-center gap-1 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition-all duration-200"
+                    >
+                      {copiedId === copyHashKey ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>Copy Hash</span>
+                    </button>
+
+                    {/* Explorer Link */}
+                    <a
+                      href={tx.explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 font-medium transition-all duration-200 border border-amber-500/30"
+                    >
+                      <span>Explorer</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                 </div>
               </div>
+            );
+          })}
+        </div>
+      )}
 
-              {/* Right Side: Explorer Link */}
-              <div className="flex items-center justify-end sm:justify-start gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5">
-                <a
-                  href={getExplorerTxUrl(tx.hash)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-all duration-200"
-                >
-                  <span>Explorer</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      {/* Pagination Controls */}
+      {!isLoading && filteredTransactions.length > itemsPerPage && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/10 text-xs">
+          <div className="text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+            <span className="font-semibold text-foreground">
+              {Math.min(currentPage * itemsPerPage, filteredTransactions.length)}
+            </span>{' '}
+            of <span className="font-semibold text-foreground">{filteredTransactions.length}</span> confirmed transactions
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-all duration-200"
+              title="Previous Page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <span className="font-semibold text-foreground px-2">
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-all duration-200"
+              title="Next Page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
